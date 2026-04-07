@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DISCORD WEBHOOK SENDER</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body {
+      background: url('https://i.pinimg.com/originals/b7/92/fc/b792fc8bc3df0d4d079213ae3f3ce279.gif') fixed center/cover;
+      background-color: rgba(0, 0, 0, 0.65);
+      background-blend-mode: overlay;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    }
+    .checkbox-label { transition: all 0.2s; }
+    .checkbox-label:hover { transform: translateX(4px); }
+
+    /* ライブプレビューをさらに透過に強化 */
+    .discord-preview {
+      background: rgba(54, 57, 63, 0.65);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 18px;
+      height: 100%;
+      overflow-y: auto;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .discord-message { display: flex; gap: 12px; margin-bottom: 20px; }
+    .discord-avatar { width: 40px; height: 40px; border-radius: 50%; background-size: cover; flex-shrink: 0; }
+    .discord-content { flex: 1; }
+    .discord-username { font-weight: 600; color: #fff; }
+    .discord-time { font-size: 12px; color: #b9bbbe; margin-left: 8px; }
+    .discord-text { color: #dcddde; line-height: 1.45; font-size: 15px; }
+    .spoiler { background: #202225; color: #202225; padding: 2px 6px; border-radius: 3px; cursor: pointer; }
+    .spoiler:hover { background: #72767d; color: #fff; }
+    .mention { color: #00aff4; background: rgba(0, 175, 244, 0.15); padding: 0 4px; border-radius: 3px; }
+    .embed { margin-top: 10px; background: rgba(47, 49, 54, 0.85); border-left: 4px solid #7289da; border-radius: 4px; padding: 12px; }
+    .embed-thumbnail { max-width: 70px; float: right; margin-left: 12px; border-radius: 4px; }
+    .embed-image { max-width: 100%; border-radius: 4px; margin-top: 8px; }
+    .file-preview { margin-top: 8px; max-width: 100%; border-radius: 4px; border: 1px solid #4f545c; }
+  </style>
+</head>
+<body class="min-h-screen text-white p-4 sm:p-6">
+  <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6">
+    
+    <!-- メイン設定カード -->
+    <div class="lg:col-span-3 glass-card rounded-3xl p-5 sm:p-8">
+      <h1 class="text-3xl sm:text-4xl font-bold text-center mb-8 tracking-wider">DISCORD WEBHOOK SENDER</h1>
+      
+      <!-- Webhook URL -->
+      <div class="mb-8">
+        <label class="block text-sm mb-2 font-medium">WEBHOOK URL</label>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input id="webhookUrl" type="text" placeholder="https://discord.com/api/webhooks/..." 
+                 class="flex-1 bg-white/10 border border-white/30 rounded-2xl px-5 py-4 focus:outline-none focus:border-blue-400 text-sm sm:text-base">
+          <button onclick="saveWebhookUrl()" 
+                  class="bg-white/20 hover:bg-white/30 px-6 py-4 rounded-2xl text-sm flex items-center justify-center gap-2 whitespace-nowrap">
+            <i class="fa-solid fa-save"></i> 保存
+          </button>
+        </div>
+        <div id="savedUrls" class="mt-4 flex flex-wrap gap-2"></div>
+      </div>
+
+      <div class="space-y-10">
+        <div>
+          <h2 class="text-xl font-semibold mb-4 flex items-center gap-2"><i class="fa-solid fa-user"></i> プロフィール</h2>
+          <div class="space-y-4">
+            <input id="username" type="text" placeholder="ユーザー名 (任意)" class="w-full bg-white/10 border border-white/30 rounded-2xl px-5 py-4 text-sm sm:text-base" oninput="updatePreview()">
+            <input id="avatarUrl" type="text" placeholder="アバターURL (任意)" class="w-full bg-white/10 border border-white/30 rounded-2xl px-5 py-4 text-sm sm:text-base" oninput="updatePreview()">
+          </div>
+
+          <h2 class="text-xl font-semibold mt-8 mb-4">メッセージ本文</h2>
+          <textarea id="content" rows="5" placeholder="ここにメッセージを入力..." 
+                    class="w-full bg-white/10 border border-white/30 rounded-3xl px-5 py-4 resize-y text-sm sm:text-base" oninput="updatePreview()"></textarea>
+
+          <h2 class="text-xl font-semibold mt-8 mb-5">オプション設定</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="tts" type="checkbox" class="w-5 h-5 accent-blue-500" onchange="updatePreview()">
+              <span>TTS（読み上げ）</span>
+            </label>
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="overrideUsername" type="checkbox" class="w-5 h-5 accent-blue-500" onchange="updatePreview()">
+              <span>ユーザー名を上書き</span>
+            </label>
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="overrideAvatar" type="checkbox" class="w-5 h-5 accent-blue-500" onchange="updatePreview()">
+              <span>アバターを上書き</span>
+            </label>
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="pin" type="checkbox" class="w-5 h-5 accent-blue-500">
+              <span>メッセージをピン留め</span>
+            </label>
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="everyone" type="checkbox" class="w-5 h-5 accent-blue-500" onchange="updatePreview()">
+              <span>@EVERYONE メンション</span>
+            </label>
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="here" type="checkbox" class="w-5 h-5 accent-blue-500" onchange="updatePreview()">
+              <span>@HERE メンション</span>
+            </label>
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="spoiler" type="checkbox" class="w-5 h-5 accent-blue-500" onchange="updatePreview()">
+              <span>メッセージをスポイラー</span>
+            </label>
+            <label class="checkbox-label flex items-center gap-3 cursor-pointer">
+              <input id="spam" type="checkbox" class="w-5 h-5 accent-blue-500" onchange="toggleSpamMode()">
+              <span>SPAMモード</span>
+            </label>
+          </div>
+
+          <!-- Spamモード設定 -->
+          <div id="spamSettings" class="hidden mt-6 p-5 bg-white/10 border border-white/30 rounded-3xl">
+            <h3 class="font-semibold mb-4 flex items-center gap-2"><i class="fa-solid fa-repeat"></i> SPAM設定</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm mb-2">送信回数</label>
+                <input id="spamCount" type="number" value="5" min="1" max="50"
+                       class="w-full bg-white/10 border border-white/30 rounded-2xl px-5 py-4 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm mb-2">送信間隔 (ミリ秒)</label>
+                <input id="spamInterval" type="number" value="800" min="100" step="100"
+                       class="w-full bg-white/10 border border-white/30 rounded-2xl px-5 py-4 text-sm">
+                <p class="text-xs text-white/60 mt-1">例: 800 = 0.8秒間隔</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Embed -->
+        <div>
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold flex items-center gap-2"><i class="fa-solid fa-layer-group"></i> EMBED</h2>
+            <button onclick="addEmbed()" 
+                    class="bg-white/20 hover:bg-white/30 px-5 py-3 rounded-2xl text-sm flex items-center gap-2">
+              <i class="fa-solid fa-plus"></i> EMBED追加
+            </button>
+          </div>
+          <div id="embedsContainer" class="space-y-6 max-h-[420px] sm:max-h-[520px] overflow-y-auto pr-2"></div>
+        </div>
+      </div>
+
+      <div class="mt-8">
+        <h2 class="text-xl font-semibold mb-3">ファイル添付 (複数可)</h2>
+        <input id="files" type="file" multiple 
+               class="block w-full text-sm text-white/80 file:mr-4 file:py-3 file:px-6 file:rounded-2xl file:border-0 file:bg-white/20 file:text-white hover:file:bg-white/30">
+      </div>
+
+      <div class="mt-10 flex justify-center items-center gap-4">
+        <button onclick="sendWebhook()" id="sendBtn" 
+                class="bg-zinc-900 hover:bg-black border border-zinc-700 hover:border-zinc-500 px-10 sm:px-12 py-5 rounded-3xl text-lg sm:text-xl font-bold shadow-lg transition-all active:scale-95 flex items-center gap-3">
+          <i class="fa-solid fa-paper-plane"></i> メッセージを送信
+        </button>
+        <button onclick="stopSending()" id="stopBtn" 
+                class="hidden bg-red-600/80 hover:bg-red-700 border border-red-500 px-6 py-5 rounded-3xl text-lg font-medium transition-all">
+          <i class="fa-solid fa-stop"></i> 停止
+        </button>
+      </div>
+    </div>
+
+    <!-- ライブプレビューカード（さらに透過） -->
+    <div class="lg:col-span-2">
+      <div class="glass-card rounded-3xl p-5 sm:p-6 h-full flex flex-col">
+        <h2 class="text-2xl font-bold mb-6 tracking-widest">LIVE PREVIEW</h2>
+        <div id="livePreview" class="discord-preview flex-1 min-h-[400px]"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let embedCount = 0;
+
+    function toggleSpamMode() {
+      const isSpam = document.getElementById('spam').checked;
+      document.getElementById('spamSettings').classList.toggle('hidden', !isSpam);
+      updatePreview();
+    }
+
+    function loadSavedUrls() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('savedWebhooks') || '[]');
+        const container = document.getElementById('savedUrls');
+        container.innerHTML = '';
+        saved.forEach((url, index) => {
+          const div = document.createElement('div');
+          div.className = 'bg-white/10 border border-white/30 rounded-2xl px-4 py-2 text-sm flex items-center gap-3 group';
+          div.innerHTML = `
+            <span onclick="loadUrl('${url}')" class="cursor-pointer hover:underline truncate max-w-[260px]">${url}</span>
+            <button onclick="deleteSavedUrl(${index}); event.stopImmediatePropagation()" 
+                    class="text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          `;
+          container.appendChild(div);
+        });
+      } catch (e) {
+        document.getElementById('savedUrls').innerHTML = '';
+      }
+    }
+
+    function saveWebhookUrl() {
+      try {
+        const url = document.getElementById('webhookUrl').value.trim();
+        if (!url) return alert('URLを入力してください');
+        let saved = JSON.parse(localStorage.getItem('savedWebhooks') || '[]');
+        if (!saved.includes(url)) {
+          saved.push(url);
+          localStorage.setItem('savedWebhooks', JSON.stringify(saved));
+          loadSavedUrls();
+          alert('Webhook URLを保存しました！');
+        } else {
+          alert('すでに保存されています');
+        }
+      } catch (e) {
+        alert('保存機能はVercelにデプロイしてから利用できます。');
+      }
+    }
+
+    function loadUrl(url) { document.getElementById('webhookUrl').value = url; }
+    function deleteSavedUrl(index) {
+      try {
+        let saved = JSON.parse(localStorage.getItem('savedWebhooks') || '[]');
+        saved.splice(index, 1);
+        localStorage.setItem('savedWebhooks', JSON.stringify(saved));
+        loadSavedUrls();
+      } catch (e) {}
+    }
+
+    function updatePreview() {
+      const preview = document.getElementById('livePreview');
+      let html = '';
+
+      const username = document.getElementById('username').value || "WEBHOOK BOT";
+      const avatar = document.getElementById('avatarUrl').value || "https://cdn.discordapp.com/embed/avatars/0.png";
+      const content = document.getElementById('content').value || '';
+      const isSpoiler = document.getElementById('spoiler').checked;
+      const hasEveryone = document.getElementById('everyone').checked;
+      const hasHere = document.getElementById('here').checked;
+      const hasTTS = document.getElementById('tts').checked;
+
+      html += `
+        <div class="discord-message">
+          <div class="discord-avatar" style="background-image: url('${avatar}')"></div>
+          <div class="discord-content">
+            <div class="flex items-center flex-wrap">
+              <span class="discord-username">${username}</span>
+              <span class="discord-time">TODAY AT ${new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'})}</span>
+              ${hasTTS ? '<i class="fa-solid fa-volume-high text-[#b9bbbe] ml-2"></i>' : ''}
+            </div>
+            <div class="discord-text">
+              ${hasEveryone ? '<span class="mention">@EVERYONE</span> ' : ''}
+              ${hasHere ? '<span class="mention">@HERE</span> ' : ''}
+              ${content ? (isSpoiler ? `<span class="spoiler" title="クリックで表示">${content}</span>` : content.replace(/\n/g, '<br>')) : '<span class="text-[#b9bbbe]">入力するとここに反映されます</span>'}
+            </div>
+      `;
+
+      const files = document.getElementById('files').files;
+      if (files && files.length > 0) {
+        html += `<div class="mt-3 flex flex-wrap gap-3">`;
+        for (let file of files) {
+          if (file.type.startsWith('image/')) {
+            html += `<img src="${URL.createObjectURL(file)}" class="file-preview" alt="${file.name}">`;
+          } else {
+            html += `<div class="text-xs bg-[#2f3136] px-3 py-2 rounded">📎 ${file.name}</div>`;
+          }
+        }
+        html += `</div>`;
+      }
+
+      document.querySelectorAll('#embedsContainer > div').forEach(embedDiv => {
+        const title = embedDiv.querySelector('.embed-title')?.value || '';
+        const desc = embedDiv.querySelector('.embed-desc')?.value || '';
+        const color = embedDiv.querySelector('.embed-color')?.value || '#7289da';
+        const authorName = embedDiv.querySelector('.embed-author-name')?.value || '';
+        const authorIcon = embedDiv.querySelector('.embed-author-icon')?.value || '';
+        const thumbnail = embedDiv.querySelector('.embed-thumbnail')?.value || '';
+        const image = embedDiv.querySelector('.embed-image')?.value || '';
+        const footerText = embedDiv.querySelector('.embed-footer-text')?.value || '';
+        const footerIcon = embedDiv.querySelector('.embed-footer-icon')?.value || '';
+        const timestampOn = embedDiv.querySelector('.embed-timestamp')?.value === 'true';
+
+        html += `
+          <div class="embed" style="border-left-color: ${color}">
+            ${authorName ? `<div class="embed-author">${authorIcon ? `<img src="${authorIcon}" class="w-6 h-6 rounded-full">` : ''}<span class="text-[#00aff4]">${authorName}</span></div>` : ''}
+            ${title ? `<div class="text-white font-semibold">${title}</div>` : ''}
+            ${desc ? `<div class="text-[#dcddde] mt-1 text-[14px]">${desc.replace(/\n/g, '<br>')}</div>` : ''}
+            ${thumbnail ? `<img src="${thumbnail}" class="embed-thumbnail">` : ''}
+            ${image ? `<img src="${image}" class="embed-image">` : ''}
+            ${footerText ? `<div class="flex items-center gap-2 mt-3 text-xs text-[#b9bbbe]">${footerIcon ? `<img src="${footerIcon}" class="w-5 h-5 rounded-full">` : ''}<span>${footerText}</span>${timestampOn ? `<span class="ml-auto">${new Date().toLocaleDateString('ja-JP')}</span>` : ''}</div>` : ''}
+          </div>
+        `;
+      });
+
+      html += `</div></div>`;
+      preview.innerHTML = html;
+    }
+
+    function addEmbed() {
+      embedCount++;
+      const container = document.getElementById('embedsContainer');
+      const embedHTML = `
+        <div class="glass-card p-5 sm:p-6 rounded-3xl relative" id="embed-${embedCount}">
+          <button onclick="removeEmbed(${embedCount})" class="absolute top-4 right-4 text-red-400 hover:text-red-500"><i class="fa-solid fa-trash"></i></button>
+          <h3 class="font-medium mb-4">EMBED ${embedCount}</h3>
+          <div class="grid grid-cols-1 gap-4 text-sm">
+            <input placeholder="EMBED TITLE" class="embed-title w-full bg-white/10 border border-white/30 rounded-2xl px-5 py-3" oninput="updatePreview()">
+            <textarea placeholder="DESCRIPTION" class="embed-desc w-full bg-white/10 border border-white/30 rounded-3xl px-5 py-4 h-24 resize-y" oninput="updatePreview()"></textarea>
+            <div class="flex gap-3">
+              <div class="flex-1"><label class="block text-xs mb-1">COLOR</label><input type="color" class="embed-color w-full h-10 bg-white/10 border border-white/30 rounded-2xl cursor-pointer" oninput="updatePreview()"></div>
+              <div class="flex-1"><label class="block text-xs mb-1">TIMESTAMP</label><select class="embed-timestamp w-full bg-white/10 border border-white/30 rounded-2xl px-4 py-3" onchange="updatePreview()"><option value="false">オフ</option><option value="true">オン</option></select></div>
+            </div>
+          </div>
+        </div>`;
+      container.innerHTML += embedHTML;
+      updatePreview();
+    }
+
+    function removeEmbed(id) {
+      const el = document.getElementById(`embed-${id}`);
+      if (el) el.remove();
+      updatePreview();
+    }
+
+    function stopSending() {
+      alert('送信を停止しました');
+      document.getElementById('sendBtn').classList.remove('hidden');
+      document.getElementById('stopBtn').classList.add('hidden');
+    }
+
+    async function sendWebhook() {
+      const url = document.getElementById('webhookUrl').value.trim();
+      if (!url) return alert('WEBHOOK URLを入力してください');
+      alert('送信処理を実行中...');
+      document.getElementById('sendBtn').classList.add('hidden');
+      document.getElementById('stopBtn').classList.remove('hidden');
+    }
+
+    window.onload = () => {
+      loadSavedUrls();
+      updatePreview();
+    };
+  </script>
+</body>
+</html>
